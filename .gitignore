@@ -1,0 +1,10 @@
+bin/
+obj/
+.vscode/
+*.user
+.DS_Store
+Thumbs.db
+user_token.txt
+*.log
+*.exe
+*.dll
