@@ -100,7 +100,7 @@ If you want to modify the code or compile the EXE yourself:
 
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/YourName/NasaDownloader.git](https://github.com/YourName/NasaDownloader.git)
+   git clone [https://github.com/YourName/ModisDownloader.git](https://github.com/YourName/ModisDownloader.git)
    cd NasaDownloader
 
 2.  Compile the project generating a single Self-Contained EXE:
@@ -187,7 +187,7 @@ Se vuoi modificare il codice o compilare l'EXE autonomamente:
 1.  Clona la repository:
 
     ```bash
-    git clone [https://github.com/TuoNome/NasaDownloader.git](https://github.com/TuoNome/NasaDownloader.git)
+    git clone [https://github.com/TuoNome/ModisDownloader.git](https://github.com/TuoNome/ModisDownloader.git)
     cd NasaDownloader
     ```
 
@@ -208,7 +208,7 @@ Il file `.gitignore` è configurato per escludere file sensibili dalla repositor
 
   * Il file `user_token.txt` (se usato in debug) non viene caricato.
   * Il token reale viene salvato nel percorso utente sicuro di Windows:
-    `C:\Users\%USERNAME%\AppData\Roaming\NasaDownloader\settings.txt`
+    `C:\Users\%USERNAME%\AppData\Roaming\ModisDownloader\settings.txt`
 
 -----
 
