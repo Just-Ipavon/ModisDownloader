@@ -16,7 +16,8 @@ namespace NasaDownloader
     public class AppSettings
     {
         public string Token { get; set; } = "";
-        public string Archivio { get; set; } = "61"; // Default
+        public string Archivio { get; set; } = "61"; // NASA Source
+        public string TargetArchivio { get; set; } = "Archivio_7"; // Valid only for NAS/Local destination folder name
     }
 
     // --- GESTORE CONFIGURAZIONE (Salvataggio JSON) ---
@@ -40,11 +41,11 @@ namespace NasaDownloader
             return new AppSettings();
         }
 
-        public static void Save(string token, string archivio)
+        public static void Save(string token, string archivio, string targetArchivio)
         {
             try
             {
-                var settings = new AppSettings { Token = token, Archivio = archivio };
+                var settings = new AppSettings { Token = token, Archivio = archivio, TargetArchivio = targetArchivio };
                 string json = JsonSerializer.Serialize(settings);
                 
                 if (!Directory.Exists(FolderPath)) Directory.CreateDirectory(FolderPath);
@@ -70,7 +71,7 @@ namespace NasaDownloader
         private NumericUpDown numDoyEnd, numYearEnd;
         private NumericUpDown numMonthIdxStart, numYearIdxStart, numMonthIdxEnd, numYearIdxEnd;
         
-        private TextBox txtToken, txtArchivio, txtLocalPath;
+        private TextBox txtToken, txtArchivio, txtTargetArchivio, txtLocalPath;
         private CheckedListBox clbDatabases;
         private RadioButton rbNas1, rbNas2, rbLocal;
         private Button btnDownload, btnLang, btnBrowseLocal;
@@ -78,7 +79,7 @@ namespace NasaDownloader
         private NumericUpDown numHourStart, numHourEnd;
         
         // Labels & Groups
-        private Label lblToken, lblDb, lblArch, lblFromDay, lblToDay, lblFromMonth, lblToMonth, lblDaySingle, lblStartHour, lblEndHour;
+        private Label lblToken, lblDb, lblArch, lblTargetArch, lblFromDay, lblToDay, lblFromMonth, lblToMonth, lblDaySingle, lblStartHour, lblEndHour;
         private GroupBox grpNas, grpOre;
 
         const string BaseUrl = "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData"; // Tolto il '61' hardcoded qui perché ora è dinamico
@@ -94,7 +95,8 @@ namespace NasaDownloader
             // --- CARICAMENTO IMPOSTAZIONI ---
             var settings = ConfigManager.Load();
             txtToken.Text = settings.Token;
-            txtArchivio.Text = settings.Archivio; // Ora ricorda l'archivio!
+            txtArchivio.Text = settings.Archivio; 
+            txtTargetArchivio.Text = settings.TargetArchivio;
             
             rbLocal.Checked = true;
             UpdateLanguage();
@@ -125,10 +127,15 @@ namespace NasaDownloader
             clbDatabases.SetItemChecked(0, true);
             this.Controls.Add(clbDatabases);
 
-            // Archivio
-            lblArch = CreateLabel("Archivio:", 240, y);
+            // Archivio NASA (Source)
+            lblArch = CreateLabel("Archivio NASA:", 240, y);
             txtArchivio = new TextBox() { Text = "61", Location = new Point(240, y + 20), Width = 80 };
             this.Controls.Add(txtArchivio);
+
+            // Archivio Target (Destination Folder)
+            lblTargetArch = CreateLabel("Cartella Destinazione:", 350, y);
+            txtTargetArchivio = new TextBox() { Text = "Archivio_7", Location = new Point(350, y + 20), Width = 150 };
+            this.Controls.Add(txtTargetArchivio);
             y += 90;
 
             // Destinazione
@@ -291,7 +298,8 @@ namespace NasaDownloader
             {
                 lblToken.Text = "Token (Auto-saved):";
                 lblDb.Text = "Database (Select one or more):";
-                lblArch.Text = "Archive:";
+                lblArch.Text = "NASA Archive (Source):";
+                lblTargetArch.Text = "Dest Folder Name:";
                 grpNas.Text = "Save Destination";
                 rbLocal.Text = "Local (Choose Folder)";
                 tabSingle.Text = "Single Day";
@@ -308,7 +316,8 @@ namespace NasaDownloader
             {
                 lblToken.Text = "Token (Salvato in automatico):";
                 lblDb.Text = "Database (Seleziona uno o più):";
-                lblArch.Text = "Archivio:";
+                lblArch.Text = "Archivio NASA (Sorgente):";
+                lblTargetArch.Text = "Nome Cartella Destinazione:";
                 grpNas.Text = "Destinazione Salvataggio";
                 rbLocal.Text = "Locale (Scegli Cartella)";
                 tabSingle.Text = "Giorno Singolo";
@@ -346,7 +355,7 @@ namespace NasaDownloader
             }
 
             // --- SALVATAGGIO IMPOSTAZIONI ---
-            ConfigManager.Save(txtToken.Text, txtArchivio.Text);
+            ConfigManager.Save(txtToken.Text, txtArchivio.Text, txtTargetArchivio.Text);
 
             btnDownload.Enabled = false;
             rtbLog.Clear();
@@ -370,12 +379,14 @@ namespace NasaDownloader
 
                 if (startDate > endDate) throw new Exception(isEnglish ? "Start Date > End Date" : "Data Inizio > Data Fine");
 
-                string archivio = txtArchivio.Text;
+                string archivioUrl = txtArchivio.Text;        // Es: 61
+                string archivioTarget = txtTargetArchivio.Text; // Es: Archivio_7
+
                 string nasName = rbNas1.Checked ? "NAS29F79B" : "NASFA8369";
                 int hStart = (int)numHourStart.Value;
                 int hEnd = (int)numHourEnd.Value;
 
-                string basePath = rbLocal.Checked ? txtLocalPath.Text : Path.Combine($@"\\{nasName}", archivio, "Modis");
+                string basePath = rbLocal.Checked ? txtLocalPath.Text : Path.Combine($@"\\{nasName}", archivioTarget, "Modis");
                 if (!Directory.Exists(basePath)) Directory.CreateDirectory(basePath);
 
                 // Loop DBs
@@ -390,10 +401,11 @@ namespace NasaDownloader
                     {
                         Log($"--> {(isEnglish ? "Day" : "Giorno")}: {date:dd/MM/yyyy} (DOY: {date.DayOfYear:000})");
                         
-                        string urlDir = $"{BaseUrl}/{archivio}/{db}/{date.Year}/{date.DayOfYear:000}";
+                        string urlDir = $"{BaseUrl}/{archivioUrl}/{db}/{date.Year}/{date.DayOfYear:000}";
                         List<NasaFile> files = await GetFileListAsync(urlDir);
 
-                        if (files == null || files.Count == 0) { Log("   [INFO] No files."); continue; }
+                        if (files == null || files.Count == 0) { Log("   [INFO] No files. (API returned 0 items)"); continue; }
+                        Log($"   [DEBUG] Files found: {files.Count}. First: {files[0].name}");
 
                         string nomeMese = char.ToUpper(date.ToString("MMMM")[0]) + date.ToString("MMMM").Substring(1);
                         string targetDir = Path.Combine(basePath, $"{nomeMese}_{date.Year}");
@@ -402,11 +414,18 @@ namespace NasaDownloader
                         List<Task> tasks = new List<Task>();
                         for (int h = hStart; h < hEnd; h++)
                         {
-                            string hourStr = $".{h:00}";
-                            var match = files.FirstOrDefault(f => f.name.Contains($"{hourStr}00.") || f.name.Contains($"{hourStr}05."));
-                            if (match != null) 
+                            // Iteriamo per tutti i minuti (00, 05, ..., 55)
+                            for (int m = 0; m < 60; m += 5)
                             {
-                                tasks.Add(DownloadFileAsync($"{urlDir}/{match.name}", Path.Combine(targetDir, match.name)));
+                                string timeStr = $".{h:00}{m:00}."; // es: .0000. , .0005. , .1255.
+                                
+                                // Cerchiamo TUTTI i file che corrispondono a questo orario
+                                var matches = files.Where(f => f.name.Contains(timeStr));
+
+                                foreach (var match in matches)
+                                {
+                                    tasks.Add(DownloadFileAsync($"{urlDir}/{match.name}", Path.Combine(targetDir, match.name)));
+                                }
                             }
                         }
                         await Task.WhenAll(tasks);
@@ -422,17 +441,44 @@ namespace NasaDownloader
 
         private async Task<List<NasaFile>> GetFileListAsync(string url)
         {
+            string fullUrl = url + ".json";
             try
             {
-                var res = await client.GetAsync(url + ".json");
-                if (!res.IsSuccessStatusCode) return null;
+                // this.Invoke call to ensure it runs on UI thread if needed, though usually context is captured.
+                // But to be safe lets just invoke. 
+                // Actually, let's just assume we are on UI context or Log handles it.
+                // The Log method checks Invoke? The original Log did not check invoke but used AppendText. 
+                // Wait, BtnDownload_Click is the caller. 
+                // Let's use Invoke in Log or just modify Log to be safe? 
+                // The existing DownloadFileAsync uses Invoke for logging. I should probably use Invoke here too if I log.
+                
+                var res = await client.GetAsync(fullUrl);
+                if (!res.IsSuccessStatusCode) 
+                {
+                    this.Invoke((MethodInvoker)delegate { Log($"   [API ERR] {res.StatusCode} for {fullUrl}"); });
+                    return null;
+                }
                 string json = await res.Content.ReadAsStringAsync();
                 
-                var root = JsonSerializer.Deserialize<NasaResponse>(json);
-                if (root != null && root.content != null) return root.content;
-                return JsonSerializer.Deserialize<List<NasaFile>>(json);
+                // Try format 1
+                try {
+                    var root = JsonSerializer.Deserialize<NasaResponse>(json);
+                    if (root != null && root.content != null) return root.content;
+                } catch {}
+
+                // Try format 2
+                try {
+                   return JsonSerializer.Deserialize<List<NasaFile>>(json);
+                } catch {}
+
+                // If we are here, parsing failed
+                 this.Invoke((MethodInvoker)delegate { Log($"   [API ERR] JSON Parse failed for {fullUrl}"); });
+                 return null;
             }
-            catch { return null; }
+            catch (Exception ex) { 
+                 this.Invoke((MethodInvoker)delegate { Log($"   [API EX] {ex.Message}"); });
+                 return null; 
+            }
         }
 
         private async Task DownloadFileAsync(string url, string path)
